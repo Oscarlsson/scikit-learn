@@ -10,7 +10,7 @@ from ...utils import check_random_state
 from ..pairwise import pairwise_distances
 
 
-def silhouette_score(X, labels, metric='euclidean', sample_size=None,
+def silhouette_score(X, labels, metric='euclidean', percentage=None,
                      random_state=None, **kwds):
     """Compute the mean Silhouette Coefficient of all samples.
 
@@ -43,9 +43,10 @@ def silhouette_score(X, labels, metric='euclidean', sample_size=None,
         <sklearn.metrics.pairwise.pairwise_distances>`. If X is the distance
         array itself, use ``metric="precomputed"``.
 
-    sample_size : int or None
-        The size of the sample to use when computing the Silhouette
-        Coefficient. If ``sample_size is None``, no sampling is used.
+    percentage : float or None
+        The percentage of the size of the sample to be used when computing
+        the sampling. If ``percentage is None``, no sampling is used.
+        0 < percentage < 1
 
     random_state : integer or numpy.RandomState, optional
         The generator used to initialize the centers. If an integer is
@@ -74,9 +75,8 @@ def silhouette_score(X, labels, metric='euclidean', sample_size=None,
            <http://en.wikipedia.org/wiki/Silhouette_(clustering)>`_
 
     """
-    if sample_size is not None:
-        random_state = check_random_state(random_state)
-        indices = random_state.permutation(X.shape[0])[:sample_size]
+    if percentage is not None:
+        indices = _stratified_sampling(X, labels, percentage, random_state)
         if metric == "precomputed":
             X, labels = X[indices].T[indices].T, labels[indices]
         else:
@@ -201,3 +201,54 @@ def _nearest_cluster_distance(distances_row, labels, i):
     b = np.min([np.mean(distances_row[labels == cur_label])
                for cur_label in set(labels) if not cur_label == label])
     return b
+
+
+def _stratified_sampling(labels, percentage, random_state):
+    """
+    Creates a subset of labels guaranteeing all unique labels are represented.
+
+    Stratified sampling is done by first dividing the dataset into subgroups
+    based on their label, before sampling.
+    This guarantees that the outputed subset will containg at least one
+    datasample belonging to each label.
+
+    This function outputs the indexes of the sample. The size of the sample
+    is specified with the percentage-parameter which should lie between
+    0 and 1.
+
+    Parameters
+    ----------
+    labels : array, shape = [n_samples]
+             label values for each sample
+
+    percentage : float or None
+        The percentage of the size of the sample to be used when computing
+        the sampling. If ``percentage is None``, no sampling is used.
+        0 < percentage < 1
+
+    random_state : integer or numpy.RandomState, optional
+        The generator used to initialize the centers. If an integer is
+        given, it fixes the seed. Defaults to the global numpy random
+        number generator.
+
+    Returns
+    -------
+    indices : array
+        The indices of X and labels that belongs to the sampling
+
+    References
+    ----------
+
+    .. [2] `Wikipedia entry on the Stratified sampling
+           <http://en.wikipedia.org/wiki/Stratified_sampling>`_
+    """
+    random_state = check_random_state(random_state)
+    binned_data = [((labels == i).nonzero())[0] for i in set(labels)]
+    samples_per_bin = map(lambda x:
+                          int(np.ceil(len(x) * percentage)),
+                          binned_data)
+    indices = np.hstack(map(
+                        lambda d, n:
+                        random_state.permutation(d)[:n],
+                        binned_data, samples_per_bin))
+    return indices

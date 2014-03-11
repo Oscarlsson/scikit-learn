@@ -2,9 +2,9 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from .... import datasets
-from ..unsupervised import silhouette_score
+from ..unsupervised import silhouette_score, _stratified_sampling
 from ... import pairwise_distances
-from nose.tools import assert_false, assert_almost_equal
+from nose.tools import assert_false, assert_almost_equal, assert_equal
 
 
 def test_silhouette():
@@ -22,10 +22,10 @@ def test_silhouette():
     assert_almost_equal(silhouette, silhouette_metric)
     # Test with sampling
     silhouette = silhouette_score(D, y, metric='precomputed',
-                                  sample_size=int(X.shape[0] / 2),
+                                  percentage=0.5,
                                   random_state=0)
     silhouette_metric = silhouette_score(X, y, metric='euclidean',
-                                         sample_size=int(X.shape[0] / 2),
+                                         percentage=0.5,
                                          random_state=0)
     assert(silhouette > 0)
     assert(silhouette_metric > 0)
@@ -49,3 +49,35 @@ def test_no_nan():
     D = np.random.RandomState(0).rand(len(labels), len(labels))
     silhouette = silhouette_score(D, labels, metric='precomputed')
     assert_false(np.isnan(silhouette))
+
+
+def test_stratif_size():
+    """ Tests stratified sampling. Tests that the size is approximately correct
+    """
+    dataset = datasets.load_iris()
+    X = dataset.data
+    y = dataset.target
+    D = pairwise_distances(X, metric='euclidean')
+
+    for perc in np.arange(0, 1.1, 0.1):
+        indices = _stratified_sampling(D, y, perc, None)
+        assert_almost_equal(len(indices), len(y)*perc)
+
+
+def test_stratsampl_label():
+    """ Tests stratified sampling. Tests such that all labels are covered in subsample 
+    """
+    dataset = datasets.load_iris()
+    X = dataset.data
+    y = dataset.target
+    D = pairwise_distances(X, metric='euclidean')
+
+    for perc in np.arange(0.1, 1.1, 0.1):
+        samplesize = perc
+        indices = _stratified_sampling(X, y, samplesize, None)
+        sampledlabels = np.unique(y[indices])
+        assert_equal(len(sampledlabels), len(np.unique(y)))
+
+        indices = _stratified_sampling(D, y, samplesize, None)
+        sampledlabels = np.unique(y[indices])
+        assert_equal(len(sampledlabels), len(np.unique(y)))
