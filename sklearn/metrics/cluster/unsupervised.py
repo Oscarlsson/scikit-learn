@@ -76,7 +76,7 @@ def silhouette_score(X, labels, metric='euclidean', percentage=None,
 
     """
     if percentage is not None:
-        indices = _stratified_sampling(X, labels, percentage, random_state)
+        indices = _stratified_sampling(labels, percentage, random_state)
         if metric == "precomputed":
             X, labels = X[indices].T[indices].T, labels[indices]
         else:
